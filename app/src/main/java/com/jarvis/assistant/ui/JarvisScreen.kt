@@ -2,6 +2,7 @@ package com.jarvis.assistant.ui
 
 import android.content.Intent
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -178,6 +179,9 @@ fun JarvisScreen(vm: JarvisViewModel) {
         val context = LocalContext.current
         var key by remember { mutableStateOf(vm.apiKey) }
         var model by remember { mutableStateOf(vm.model) }
+        var name by remember { mutableStateOf(vm.userName) }
+        var nick by remember { mutableStateOf(vm.nickname) }
+        var voiceText by remember { mutableStateOf(vm.voiceLabel()) }
         val accOn = Screen.enabled()
         val notifOn = JarvisNotificationListener.instance != null
 
@@ -186,6 +190,24 @@ fun JarvisScreen(vm: JarvisViewModel) {
             title = { Text("Settings") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Tumhara naam", fontSize = 12.sp)
+                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Main tumhe pyaar se kya bulaun? (jaise: yaar, boss, bhai)", fontSize = 12.sp)
+                    OutlinedTextField(value = nick, onValueChange = { nick = it }, singleLine = true)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val r = vm.nextVoice()
+                            voiceText = vm.voiceLabel()
+                            if (r.startsWith("Is phone")) {
+                                Toast.makeText(context, r, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(voiceText) }
+
+                    Spacer(Modifier.height(16.dp))
                     Text("Gemini API key (aistudio.google.com se free milti hai)", fontSize = 12.sp)
                     OutlinedTextField(
                         value = key,
@@ -193,11 +215,11 @@ fun JarvisScreen(vm: JarvisViewModel) {
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation()
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text("Model name", fontSize = 12.sp)
                     OutlinedTextField(value = model, onValueChange = { model = it }, singleLine = true)
-                    Spacer(Modifier.height(16.dp))
 
+                    Spacer(Modifier.height(16.dp))
                     Text("Accessibility (tap/type/screen padhna): " + if (accOn) "ON" else "OFF", fontSize = 12.sp)
                     OutlinedButton(
                         onClick = {
@@ -222,7 +244,7 @@ fun JarvisScreen(vm: JarvisViewModel) {
             },
             confirmButton = {
                 Button(onClick = {
-                    vm.saveSettings(key, model)
+                    vm.saveSettings(key, model, name, nick)
                     showSettings = false
                 }) { Text("Save") }
             },
