@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,7 +47,8 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
-            Manifest.permission.SEND_SMS
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.ANSWER_PHONE_CALLS
         )
         if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
         permLauncher.launch(perms.toTypedArray())
@@ -89,18 +91,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun FloatingChip(on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (on) Color(0xFF00E5FF) else Color(0xFF1B2547))
+            .background(if (on) Color(0xFF1DE9B6) else Color(0xFF12292B))
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(
             text = if (on) "Floating: ON" else "Floating: OFF",
-            color = if (on) Color(0xFF001018) else Color(0xFFE6F1FF),
+            color = if (on) Color(0xFF001A17) else Color(0xFFE0F7F4),
             fontSize = 12.sp
         )
     }
