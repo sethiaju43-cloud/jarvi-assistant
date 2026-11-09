@@ -2,7 +2,9 @@ package com.jarvis.assistant.actions
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,17 +14,24 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.AlarmClock
 import android.provider.ContactsContract
+import android.provider.MediaStore
 import android.provider.Settings
 import android.telecom.TelecomManager
 import android.telephony.SmsManager
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.jarvis.assistant.service.JarvisNotificationListener
+import com.jarvis.assistant.service.JarvisWallpaperService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Phone ke saare kaam yahan hain. Gemini inhe "tools" ki tarah bulata hai. Ye background thread se chalta hai. */
 class PhoneActions(private val ctx: Context) {
@@ -35,7 +44,7 @@ class PhoneActions(private val ctx: Context) {
 
     private val notRecorded = setOf(
         "read_screen", "read_notifications", "start_recording", "save_macro",
-        "run_macro", "list_macros", "delete_macro", "battery_status", "current_time"
+        "run_macro", "list_macros", "delete_macro", "battery_status", "current_time", "scan_qr"
     )
 
     // ---------- Gemini ko batane ke liye tools ki list ----------
@@ -100,6 +109,9 @@ class PhoneActions(private val ctx: Context) {
         .put(decl("read_notifications", "Phone ki naye notifications padho"))
         .put(decl("answer_call", "Aa rahi call utha lo"))
         .put(decl("end_call", "Chal rahi call kaat do"))
+        .put(decl("open_camera", "Camera app kholo (photo khinchne ke liye)"))
+        .put(decl("scan_qr", "QR code ya barcode scan karo aur uski value batao"))
+        .put(decl("set_live_wallpaper", "Jarvis ka live wallpaper lagane ka screen kholo"))
         .put(
             decl(
                 "open_settings", "Phone ki Settings ka koi hissa kholo. Toggle badalna ho to iske baad read_screen aur tap_text use karo",
@@ -176,6 +188,12 @@ class PhoneActions(private val ctx: Context) {
         "read_notifications" -> JarvisNotificationListener.recent()
         "answer_call" -> answerCall()
         "end_call" -> endCall()
+        "open_camera" -> {
+            launch(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA))
+            "Camera khol diya"
+        }
+        "scan_qr" -> scanQr()
+        "set_live_wallpaper" -> liveWallpaper()
         "open_settings" -> openSettings(args.optString("panel"))
         "read_screen" -> Screen.read()
         "tap_text" -> Screen.tapText(args.optString("text"))
@@ -406,6 +424,40 @@ class PhoneActions(private val ctx: Context) {
         if (!has(Manifest.permission.ANSWER_PHONE_CALLS)) return "FAIL: Phone ki permission do (Settings -> Apps -> Jarvis -> Permissions)"
         val tm = ctx.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
         return if (tm.endCall()) "Call kaat di" else "FAIL: Koi call chal nahi rahi"
+    }
+
+    private fun scanQr(): String {
+        val latch = CountDownLatch(1)
+        var result = "FAIL: Scan cancel ho gaya"
+        Handler(Looper.getMainLooper()).post {
+            try {
+                GmsBarcodeScanning.getClient(ctx).startScan()
+                    .addOnSuccessListener { b ->
+                        result = "QR/Barcode: ${b.rawValue}"
+                        latch.countDown()
+                    }
+                    .addOnCanceledListener { latch.countDown() }
+                    .addOnFailureListener { e ->
+                        result = "FAIL: Scanner nahi chala (${e.message})"
+                        latch.countDown()
+                    }
+            } catch (e: Exception) {
+                result = "FAIL: Scanner nahi chala (${e.message})"
+                latch.countDown()
+            }
+        }
+        latch.await(60, TimeUnit.SECONDS)
+        return result
+    }
+
+    private fun liveWallpaper(): String {
+        launch(
+            Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(
+                WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                ComponentName(ctx, JarvisWallpaperService::class.java)
+            )
+        )
+        return "Wallpaper preview khol diya, 'Set wallpaper' dabao"
     }
 
     private fun openSettings(panel: String): String {
