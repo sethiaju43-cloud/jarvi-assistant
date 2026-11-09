@@ -23,10 +23,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val model: String get() = core.model
     val userName: String get() = core.userName
     val nickname: String get() = core.nickname
+    val chatMode: Boolean get() = core.chatMode
+    val wakeReply: Boolean get() = core.wakeReply
     val messages get() = core.messages
 
-    fun saveSettings(key: String, modelName: String, name: String, nick: String) =
-        core.saveSettings(key, modelName, name, nick)
+    fun saveSettings(
+        key: String,
+        modelName: String,
+        name: String,
+        nick: String,
+        chat: Boolean,
+        wake: Boolean
+    ) = core.saveSettings(key, modelName, name, nick, chat, wake)
 
     fun nextVoice(): String = core.nextVoice()
     fun voiceLabel(): String = core.voiceLabel()
