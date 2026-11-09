@@ -22,11 +22,11 @@ import androidx.core.app.ServiceCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.ViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.jarvis.assistant.JarvisApp
 import com.jarvis.assistant.MainActivity
 import com.jarvis.assistant.core.AssistantCore
@@ -85,8 +85,8 @@ class JarvisService : Service() {
         owner = o
 
         val view = ComposeView(this).apply {
-            ViewTreeLifecycleOwner.set(this, o)
-            ViewTreeSavedStateRegistryOwner.set(this, o)
+            setViewTreeLifecycleOwner(o)
+            setViewTreeSavedStateRegistryOwner(o)
             setContent {
                 JarvisTheme {
                     OverlayCharacter(
