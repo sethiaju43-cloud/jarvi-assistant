@@ -184,7 +184,9 @@ fun JarvisScreen(vm: JarvisViewModel) {
         var nick by remember { mutableStateOf(vm.nickname) }
         var chat by remember { mutableStateOf(vm.chatMode) }
         var wakeR by remember { mutableStateOf(vm.wakeReply) }
+        var gv by remember { mutableStateOf(vm.geminiVoice) }
         var voiceText by remember { mutableStateOf(vm.voiceLabel()) }
+        var gvText by remember { mutableStateOf(vm.geminiVoiceLabel()) }
         val accOn = Screen.enabled()
         val notifOn = JarvisNotificationListener.instance != null
 
@@ -198,7 +200,24 @@ fun JarvisScreen(vm: JarvisViewModel) {
                     Spacer(Modifier.height(8.dp))
                     Text("Main tumhe pyaar se kya bulaun? (jaise: yaar, boss, bhai)", fontSize = 12.sp)
                     OutlinedTextField(value = nick, onValueChange = { nick = it }, singleLine = true)
-                    Spacer(Modifier.height(8.dp))
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Gemini ki natural, pyaari awaaz (online)",
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = gv, onCheckedChange = { gv = it })
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            vm.nextGeminiVoice()
+                            gvText = vm.geminiVoiceLabel()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(gvText) }
+                    Spacer(Modifier.height(4.dp))
                     OutlinedButton(
                         onClick = {
                             val r = vm.nextVoice()
@@ -237,7 +256,7 @@ fun JarvisScreen(vm: JarvisViewModel) {
                         visualTransformation = PasswordVisualTransformation()
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text("Model name", fontSize = 12.sp)
+                    Text("Model name (default: gemini-3.8-flash)", fontSize = 12.sp)
                     OutlinedTextField(value = model, onValueChange = { model = it }, singleLine = true)
 
                     Spacer(Modifier.height(16.dp))
@@ -265,7 +284,7 @@ fun JarvisScreen(vm: JarvisViewModel) {
             },
             confirmButton = {
                 Button(onClick = {
-                    vm.saveSettings(key, model, name, nick, chat, wakeR)
+                    vm.saveSettings(key, model, name, nick, chat, wakeR, gv)
                     showSettings = false
                 }) { Text("Save") }
             },
