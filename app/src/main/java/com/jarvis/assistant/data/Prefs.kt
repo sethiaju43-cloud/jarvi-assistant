@@ -18,6 +18,13 @@ class Prefs(context: Context) {
             sp.edit().putString("model", value.trim().ifEmpty { DEFAULT_MODEL }).apply()
         }
 
+    /** Floating pehle ON tha ya nahi (boot par wapas chalane ke liye). */
+    var floatingWasOn: Boolean
+        get() = sp.getBoolean("floating_on", false)
+        set(value) {
+            sp.edit().putBoolean("floating_on", value).apply()
+        }
+
     companion object {
         const val DEFAULT_MODEL = "gemini-2.5-flash"
     }
