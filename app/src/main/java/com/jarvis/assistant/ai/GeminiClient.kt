@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit
 
 class GeminiClient(
     private val prefs: Prefs,
-    private val actions: PhoneActions
+    private val actions: PhoneActions,
+    private val memory: MemoryStore
 ) {
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -53,7 +54,7 @@ class GeminiClient(
                         .filter { it.has("text") && !it.optBoolean("thought", false) }
                         .joinToString("") { it.getString("text") }
                         .trim()
-                    return@withContext text.ifEmpty { "Ho gaya." }
+                    return@withContext text.ifEmpty { "हो गया।" }
                 }
 
                 val responses = JSONArray()
@@ -61,18 +62,19 @@ class GeminiClient(
                     val fc = c.getJSONObject("functionCall")
                     val name = fc.getString("name")
                     val args = fc.optJSONObject("args") ?: JSONObject()
-                    val result = actions.execute(name, args).take(6000)
+                    val raw = if (memory.handles(name)) memory.execute(name, args)
+                    else actions.execute(name, args)
                     responses.put(
                         JSONObject().put(
                             "functionResponse",
                             JSONObject().put("name", name)
-                                .put("response", JSONObject().put("result", result))
+                                .put("response", JSONObject().put("result", raw.take(6000)))
                         )
                     )
                 }
                 history.add(JSONObject().put("role", "user").put("parts", responses))
             }
-            "Kaam bahut lamba ho gaya, dobara bolo."
+            "काम थोड़ा लंबा हो गया, एक बार फिर बोलो ना।"
         } catch (e: Exception) {
             while (history.size > startSize) history.removeAt(history.size - 1)
             throw e
@@ -80,10 +82,17 @@ class GeminiClient(
     }
 
     private fun callGemini(key: String): JSONObject {
+        val tools = actions.declarations()
+        val mem = memory.declarations()
+        for (i in 0 until mem.length()) tools.put(mem.get(i))
+
         val body = JSONObject()
-            .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT))))
+            .put(
+                "system_instruction",
+                JSONObject().put("parts", JSONArray().put(JSONObject().put("text", Persona.build(prefs, memory))))
+            )
             .put("contents", JSONArray(history))
-            .put("tools", JSONArray().put(JSONObject().put("function_declarations", actions.declarations())))
+            .put("tools", JSONArray().put(JSONObject().put("function_declarations", tools)))
 
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/${prefs.model}:generateContent")
@@ -114,26 +123,5 @@ class GeminiClient(
 
     companion object {
         private const val MAX_ROUNDS = 16
-
-        private const val SYSTEM_PROMPT = """
-Tum Jarvis ho, ek dost jaisa Hindi/Hinglish voice assistant jo user ke Android phone me chalta hai.
-
-Jawab dene ka tarika:
-- Jawab chhote rakho (1-3 vaakya), kyunki wo bol kar sunaye jayenge. Markdown, bullet ya emoji mat use karo.
-- Hindi ya Hinglish bole to jawab Devanagari Hindi me do, taaki awaaz sahi nikle. English bole to English me do.
-- Dosti bhara, thoda mazaakiya lehja rakho, par seedha kaam ki baat karo.
-
-Phone chalane ka tarika:
-- Jab user phone ka koi kaam bole, sahi tool zaroor chalao, phir ek chhote vaakya me batao ki kya hua.
-- Jis kaam ke liye seedha tool hai (open_app, call_contact, whatsapp_message, set_alarm, torch...), wahi use karo.
-- Jab kisi app ke andar kuch karna ho: pehle open_app, phir wait, phir read_screen se dekho kya likha hai, phir tap_text / type_text / scroll. Har tap ke baad dobara read_screen karke check karo. tap_text me wahi text do jo read_screen me dikha.
-- Naye screen ke load hone ka intezaar wait ya wait_for_text se karo.
-- Agar tool 'FAIL' ya 'Error' bataye to saaf bata do ki kya dikkat hai. Bar-bar wahi galti mat dohrao; alag tareeka try karo ya user ko batao.
-- Paise bhejna, kuch delete karna, ya password/OTP jaise sensitive kaam sirf tab karo jab user ne saaf bola ho. Pehle ek baar confirm karwa lo.
-
-Macros:
-- "macro record karo" par start_recording chalao, phir user ka kaam karo, aur "macro save karo" par save_macro chalao.
-- Save kiya hua macro naam se run_macro se chalao. Agar macro me kuch badalne wala hissa ho (jaise prompt), to steps_json me {naam} likhkar params_json se do.
-"""
     }
 }
