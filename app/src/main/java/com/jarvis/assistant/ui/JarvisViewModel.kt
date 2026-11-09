@@ -13,13 +13,23 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private val core = (app as JarvisApp).core
 
+    init {
+        core.greetOnce()
+    }
+
     val state: CharState get() = core.state
     val partial: String get() = core.partial
     val apiKey: String get() = core.apiKey
     val model: String get() = core.model
+    val userName: String get() = core.userName
+    val nickname: String get() = core.nickname
     val messages get() = core.messages
 
-    fun saveSettings(key: String, modelName: String) = core.saveSettings(key, modelName)
+    fun saveSettings(key: String, modelName: String, name: String, nick: String) =
+        core.saveSettings(key, modelName, name, nick)
+
+    fun nextVoice(): String = core.nextVoice()
+    fun voiceLabel(): String = core.voiceLabel()
     fun onMic() = core.onMic()
     fun submit(text: String) = core.submit(text)
 }
