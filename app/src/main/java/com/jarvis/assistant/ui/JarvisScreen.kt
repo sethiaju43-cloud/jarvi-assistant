@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -181,6 +182,8 @@ fun JarvisScreen(vm: JarvisViewModel) {
         var model by remember { mutableStateOf(vm.model) }
         var name by remember { mutableStateOf(vm.userName) }
         var nick by remember { mutableStateOf(vm.nickname) }
+        var chat by remember { mutableStateOf(vm.chatMode) }
+        var wakeR by remember { mutableStateOf(vm.wakeReply) }
         var voiceText by remember { mutableStateOf(vm.voiceLabel()) }
         val accOn = Screen.enabled()
         val notifOn = JarvisNotificationListener.instance != null
@@ -206,6 +209,24 @@ fun JarvisScreen(vm: JarvisViewModel) {
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(voiceText) }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Baat-cheet mode: jawab ke baad khud sunti rahe",
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = chat, onCheckedChange = { chat = it })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "'Jarvis' bolne par pyaar se 'haan bolo' kahe",
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = wakeR, onCheckedChange = { wakeR = it })
+                    }
 
                     Spacer(Modifier.height(16.dp))
                     Text("Gemini API key (aistudio.google.com se free milti hai)", fontSize = 12.sp)
@@ -244,7 +265,7 @@ fun JarvisScreen(vm: JarvisViewModel) {
             },
             confirmButton = {
                 Button(onClick = {
-                    vm.saveSettings(key, model, name, nick)
+                    vm.saveSettings(key, model, name, nick, chat, wakeR)
                     showSettings = false
                 }) { Text("Save") }
             },
