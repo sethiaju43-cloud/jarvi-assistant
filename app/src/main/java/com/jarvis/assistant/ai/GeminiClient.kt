@@ -25,6 +25,10 @@ class GeminiClient(
 
     private val history = mutableListOf<JSONObject>()
 
+    /** Agar model thinkingConfig na le, to ise band karke dobara bhejte hain. */
+    @Volatile
+    private var useThinkingCfg = true
+
     fun clear() = history.clear()
 
     suspend fun chat(userText: String): String = withContext(Dispatchers.IO) {
@@ -41,6 +45,7 @@ class GeminiClient(
 
             var rounds = 0
             while (rounds++ < MAX_ROUNDS) {
+                // Poora jawab waise ka waisa rakhte hain (thought signatures bachi rehti hain)
                 val content = callGemini(key)
                 if (!content.has("role")) content.put("role", "model")
                 history.add(content)
@@ -57,6 +62,7 @@ class GeminiClient(
                     return@withContext text.ifEmpty { "हो गया।" }
                 }
 
+                // Har functionCall ke liye ek functionResponse, wahi id aur name ke saath
                 val responses = JSONArray()
                 for (c in calls) {
                     val fc = c.getJSONObject("functionCall")
@@ -64,13 +70,12 @@ class GeminiClient(
                     val args = fc.optJSONObject("args") ?: JSONObject()
                     val raw = if (memory.handles(name)) memory.execute(name, args)
                     else actions.execute(name, args)
-                    responses.put(
-                        JSONObject().put(
-                            "functionResponse",
-                            JSONObject().put("name", name)
-                                .put("response", JSONObject().put("result", raw.take(6000)))
-                        )
-                    )
+
+                    val fr = JSONObject()
+                        .put("name", name)
+                        .put("response", JSONObject().put("result", raw.take(6000)))
+                    if (fc.has("id")) fr.put("id", fc.getString("id"))
+                    responses.put(JSONObject().put("functionResponse", fr))
                 }
                 history.add(JSONObject().put("role", "user").put("parts", responses))
             }
@@ -81,7 +86,29 @@ class GeminiClient(
         }
     }
 
+    /** Pehle chuna hua model, 404 aaye to backup models. */
     private fun callGemini(key: String): JSONObject {
+        val models = (listOf(prefs.model) + FALLBACK_MODELS).distinct()
+        var last: IOException? = null
+        for (m in models) {
+            var tries = 0
+            while (tries++ < 2) {
+                val (code, txt) = post(key, m)
+                if (code in 200..299) return parse(txt)
+                if (code == 400 && useThinkingCfg && txt.contains("thinking", ignoreCase = true)) {
+                    useThinkingCfg = false
+                    continue
+                }
+                last = IOException("Gemini $code: ${txt.take(250)}")
+                break
+            }
+            // Sirf "model nahi mila" par agla model try karo
+            if (last?.message?.startsWith("Gemini 404") != true) break
+        }
+        throw last ?: IOException("Gemini se jawab nahi mila")
+    }
+
+    private fun post(key: String, model: String): Pair<Int, String> {
         val tools = actions.declarations()
         val mem = memory.declarations()
         for (i in 0 until mem.length()) tools.put(mem.get(i))
@@ -94,20 +121,29 @@ class GeminiClient(
             .put("contents", JSONArray(history))
             .put("tools", JSONArray().put(JSONObject().put("function_declarations", tools)))
 
+        if (useThinkingCfg) {
+            body.put(
+                "generationConfig",
+                JSONObject().put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
+            )
+        }
+
         val req = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/${prefs.model}:generateContent")
+            .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
             .header("x-goog-api-key", key)
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         http.newCall(req).execute().use { r ->
-            val txt = r.body?.string().orEmpty()
-            if (!r.isSuccessful) throw IOException("Gemini ${r.code}: ${txt.take(250)}")
-            val cands = JSONObject(txt).optJSONArray("candidates")
-            if (cands == null || cands.length() == 0) throw IOException("Gemini ne khaali jawab diya")
-            return cands.getJSONObject(0).optJSONObject("content")
-                ?: throw IOException("Gemini ne jawab nahi diya")
+            return Pair(r.code, r.body?.string().orEmpty())
         }
+    }
+
+    private fun parse(txt: String): JSONObject {
+        val cands = JSONObject(txt).optJSONArray("candidates")
+        if (cands == null || cands.length() == 0) throw IOException("Gemini ne khaali jawab diya")
+        return cands.getJSONObject(0).optJSONObject("content")
+            ?: throw IOException("Gemini ne jawab nahi diya")
     }
 
     private fun trimHistory() {
@@ -123,5 +159,6 @@ class GeminiClient(
 
     companion object {
         private const val MAX_ROUNDS = 16
+        private val FALLBACK_MODELS = listOf("gemini-3.7-flash", "gemini-3.5-flash-lite")
     }
 }
