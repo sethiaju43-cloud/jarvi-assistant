@@ -39,7 +39,7 @@ class GeminiClient(
             trimHistory()
 
             var rounds = 0
-            while (rounds++ < 6) {
+            while (rounds++ < MAX_ROUNDS) {
                 val content = callGemini(key)
                 if (!content.has("role")) content.put("role", "model")
                 history.add(content)
@@ -61,7 +61,7 @@ class GeminiClient(
                     val fc = c.getJSONObject("functionCall")
                     val name = fc.getString("name")
                     val args = fc.optJSONObject("args") ?: JSONObject()
-                    val result = actions.execute(name, args)
+                    val result = actions.execute(name, args).take(6000)
                     responses.put(
                         JSONObject().put(
                             "functionResponse",
@@ -102,7 +102,7 @@ class GeminiClient(
     }
 
     private fun trimHistory() {
-        while (history.size > 30) history.removeAt(0)
+        while (history.size > 40) history.removeAt(0)
         while (history.isNotEmpty() && !isUserText(history[0])) history.removeAt(0)
     }
 
@@ -113,13 +113,27 @@ class GeminiClient(
     }
 
     companion object {
+        private const val MAX_ROUNDS = 16
+
         private const val SYSTEM_PROMPT = """
 Tum Jarvis ho, ek dost jaisa Hindi/Hinglish voice assistant jo user ke Android phone me chalta hai.
+
+Jawab dene ka tarika:
 - Jawab chhote rakho (1-3 vaakya), kyunki wo bol kar sunaye jayenge. Markdown, bullet ya emoji mat use karo.
-- Agar user Hindi ya Hinglish bole to jawab Devanagari Hindi me do, taaki awaaz sahi nikle. English bole to English me do.
-- Jab user phone ka koi kaam bole (app kholna, call, SMS, alarm, torch, volume, search, gaana), to sahi tool zaroor chalao, phir ek chhote vaakya me bata do ki kya hua.
-- Agar tool ka result error batata hai to saaf bata do ki kya dikkat hai.
+- Hindi ya Hinglish bole to jawab Devanagari Hindi me do, taaki awaaz sahi nikle. English bole to English me do.
 - Dosti bhara, thoda mazaakiya lehja rakho, par seedha kaam ki baat karo.
+
+Phone chalane ka tarika:
+- Jab user phone ka koi kaam bole, sahi tool zaroor chalao, phir ek chhote vaakya me batao ki kya hua.
+- Jis kaam ke liye seedha tool hai (open_app, call_contact, whatsapp_message, set_alarm, torch...), wahi use karo.
+- Jab kisi app ke andar kuch karna ho: pehle open_app, phir wait, phir read_screen se dekho kya likha hai, phir tap_text / type_text / scroll. Har tap ke baad dobara read_screen karke check karo. tap_text me wahi text do jo read_screen me dikha.
+- Naye screen ke load hone ka intezaar wait ya wait_for_text se karo.
+- Agar tool 'FAIL' ya 'Error' bataye to saaf bata do ki kya dikkat hai. Bar-bar wahi galti mat dohrao; alag tareeka try karo ya user ko batao.
+- Paise bhejna, kuch delete karna, ya password/OTP jaise sensitive kaam sirf tab karo jab user ne saaf bola ho. Pehle ek baar confirm karwa lo.
+
+Macros:
+- "macro record karo" par start_recording chalao, phir user ka kaam karo, aur "macro save karo" par save_macro chalao.
+- Save kiya hua macro naam se run_macro se chalao. Agar macro me kuch badalne wala hissa ho (jaise prompt), to steps_json me {naam} likhkar params_json se do.
 """
     }
 }
