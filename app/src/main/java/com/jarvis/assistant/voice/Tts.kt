@@ -16,6 +16,7 @@ class Tts(context: Context) {
     private var engine: TextToSpeech? = null
     private var ready = false
     private var voices: List<Voice> = emptyList()
+    private var counter = 0
 
     init {
         engine = TextToSpeech(context.applicationContext) { status ->
@@ -66,28 +67,31 @@ class Tts(context: Context) {
         return "Awaaz badlo (abhi ${i + 1}/${voices.size})"
     }
 
+    /** finished tab chalta hai jab ye wali awaaz poori ho, ya ruk jaye. Purani awaaz ka callback nahi chalta. */
     fun speak(text: String, finished: () -> Unit) {
         val e = engine
         if (!ready || e == null || text.isBlank()) {
             finished()
             return
         }
+        val id = "j${++counter}"
         e.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
+
             override fun onDone(utteranceId: String?) {
-                main.post { finished() }
+                if (utteranceId == id) main.post { finished() }
             }
 
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
-                main.post { finished() }
+                if (utteranceId == id) main.post { finished() }
             }
 
             override fun onStop(utteranceId: String?, interrupted: Boolean) {
-                main.post { finished() }
+                if (utteranceId == id) main.post { finished() }
             }
         })
-        e.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis")
+        e.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
     }
 
     fun stop() {
