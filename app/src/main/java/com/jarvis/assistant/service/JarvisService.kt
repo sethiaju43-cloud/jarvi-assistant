@@ -5,7 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
@@ -19,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -30,9 +34,11 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.jarvis.assistant.JarvisApp
 import com.jarvis.assistant.MainActivity
 import com.jarvis.assistant.core.AssistantCore
+import com.jarvis.assistant.data.Prefs
 import com.jarvis.assistant.ui.CharState
 import com.jarvis.assistant.ui.JarvisTheme
 import com.jarvis.assistant.ui.OverlayCharacter
+import com.jarvis.assistant.voice.Tts
 import com.jarvis.assistant.voice.WakeWord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,10 +53,24 @@ class JarvisService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var wm: WindowManager
     private lateinit var core: AssistantCore
+    private var prefs: Prefs? = null
     private var overlay: ComposeView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var owner: OverlayOwner? = null
     private var wake: WakeWord? = null
+    private var tts: Tts? = null
+    private var triggersRegistered = false
+
+    private val triggerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_POWER_CONNECTED -> announce("चार्जर लग गया।")
+                Intent.ACTION_POWER_DISCONNECTED -> announce("चार्जर निकल गया।")
+                Intent.ACTION_BATTERY_LOW -> announce("बैटरी कम है, चार्जर लगा लो।")
+                Intent.ACTION_BATTERY_OKAY -> announce("बैटरी ठीक हो गई।")
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -58,6 +78,7 @@ class JarvisService : Service() {
         super.onCreate()
         core = (application as JarvisApp).core
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        prefs = Prefs(this)
 
         createChannel()
         val type = if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
@@ -68,14 +89,35 @@ class JarvisService : Service() {
             return
         }
         running = true
+        prefs?.floatingWasOn = true
+        tts = Tts(this)
         addOverlay()
         setupWake()
         watchStatus()
+        registerTriggers()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) stopSelf()
         return START_NOT_STICKY
+    }
+
+    // ---------- Triggers (charger / battery) ----------
+
+    private fun registerTriggers() {
+        val f = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+            addAction(Intent.ACTION_BATTERY_LOW)
+            addAction(Intent.ACTION_BATTERY_OKAY)
+        }
+        ContextCompat.registerReceiver(this, triggerReceiver, f, ContextCompat.RECEIVER_NOT_EXPORTED)
+        triggersRegistered = true
+    }
+
+    private fun announce(text: String) {
+        if (core.state != CharState.IDLE) return
+        tts?.speak(text) { }
     }
 
     // ---------- Floating character ----------
@@ -196,10 +238,17 @@ class JarvisService : Service() {
 
     override fun onDestroy() {
         running = false
+        prefs?.floatingWasOn = false
         scope.cancel()
+        if (triggersRegistered) {
+            runCatching { unregisterReceiver(triggerReceiver) }
+            triggersRegistered = false
+        }
         wake?.release()
         wake = null
-        core.cancel()
+        tts?.shutdown()
+        tts = null
+        if (::core.isInitialized) core.cancel()
         overlay?.let { runCatching { wm.removeView(it) } }
         overlay = null
         owner?.destroy()
