@@ -11,8 +11,8 @@ android {
         applicationId = "com.jarvis.assistant"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 4
+        versionName = "1.3"
 
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -57,4 +57,7 @@ dependencies {
     // Offline wake word ("Jarvis")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
     implementation("com.alphacephei:vosk-android:0.3.47")
+
+    // QR / barcode scanner (Google ka, camera permission nahi chahiye)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }
