@@ -190,7 +190,7 @@ class JarvisService : Service() {
                     delay(700) // apni awaaz ki gunj khatam hone do
                     w.start {
                         w.stop()
-                        core.onMic()
+                        core.onWake()
                     }
                 } else {
                     w.stop()
