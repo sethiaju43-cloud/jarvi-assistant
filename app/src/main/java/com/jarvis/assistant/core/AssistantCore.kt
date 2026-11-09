@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.jarvis.assistant.actions.PhoneActions
 import com.jarvis.assistant.ai.GeminiClient
+import com.jarvis.assistant.ai.MemoryStore
 import com.jarvis.assistant.ai.OfflineBrain
+import com.jarvis.assistant.ai.Persona
 import com.jarvis.assistant.data.Prefs
 import com.jarvis.assistant.ui.CharState
 import com.jarvis.assistant.ui.Msg
@@ -18,6 +20,7 @@ import com.jarvis.assistant.voice.Tts
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Poori app ka dimaag. Activity aur floating service dono isi ko use karte hain. */
@@ -25,11 +28,15 @@ class AssistantCore(private val app: Application) {
 
     private val prefs = Prefs(app)
     private val actions = PhoneActions(app)
-    private val gemini = GeminiClient(prefs, actions)
+    private val memory = MemoryStore(app)
+    private val gemini = GeminiClient(prefs, actions, memory)
     private val offline = OfflineBrain(actions)
     private val stt = Stt(app)
     private val tts = Tts(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private var greeted = false
+    private var greetingText = ""
 
     var state by mutableStateOf(CharState.IDLE)
         private set
@@ -46,30 +53,57 @@ class AssistantCore(private val app: Application) {
     var model by mutableStateOf(prefs.model)
         private set
 
+    var userName by mutableStateOf(prefs.userName)
+        private set
+
+    var nickname by mutableStateOf(prefs.nickname)
+        private set
+
     /** Wake word ki halat (download %, ready, error). */
     var wakeStatus by mutableStateOf("")
 
     val messages = mutableStateListOf<Msg>()
 
     init {
+        greetingText = Persona.greeting(prefs)
         messages.add(
             Msg(
                 false,
                 if (prefs.apiKey.isBlank())
-                    "Namaste! Main Jarvis hun. Pehle upar Settings me apni Gemini API key daalo."
+                    "Namaste! Main Jarvis hun. Pehle upar Settings me apni Gemini API key daalo, aur apna naam bhi bata dena."
                 else
-                    "Namaste! Bolo, kya karna hai?"
+                    greetingText
             )
         )
     }
 
-    fun saveSettings(key: String, modelName: String) {
+    /** Pehli baar app khulne par pyaar se hello bolo. */
+    fun greetOnce() {
+        if (greeted) return
+        greeted = true
+        if (prefs.apiKey.isBlank()) return
+        scope.launch {
+            delay(1200)
+            if (state == CharState.IDLE) speak(greetingText)
+        }
+    }
+
+    fun saveSettings(key: String, modelName: String, name: String, nick: String) {
         prefs.apiKey = key
         prefs.model = modelName
+        prefs.userName = name
+        prefs.nickname = nick
         apiKey = prefs.apiKey
         model = prefs.model
+        userName = prefs.userName
+        nickname = prefs.nickname
+        greetingText = Persona.greeting(prefs)
         gemini.clear()
     }
+
+    fun nextVoice(): String = tts.nextVoice()
+
+    fun voiceLabel(): String = tts.voiceLabel()
 
     fun onMic() {
         if (state == CharState.LISTENING) {
@@ -136,11 +170,11 @@ class AssistantCore(private val app: Application) {
     }
 
     private fun errorText(e: Exception): String = when {
-        e.message == "NO_KEY" -> "Pehle Settings me Gemini API key daalo."
-        e.message?.contains("429") == true -> "Gemini ki free limit poori ho gayi, thodi der baad try karo."
+        e.message == "NO_KEY" -> "पहले सेटिंग्स में अपनी Gemini API key डाल दो ना।"
+        e.message?.contains("429") == true -> "अरे, Gemini की फ्री लिमिट पूरी हो गई। थोड़ी देर बाद फिर कोशिश करते हैं।"
         e.message?.contains("400") == true || e.message?.contains("403") == true ->
-            "API key ya model name galat lagta hai. Settings check karo."
-        else -> "Internet ya Gemini me dikkat hai, aur ye command offline samajh nahi aaya."
+            "लगता है API key या मॉडल का नाम गलत है। सेटिंग्स एक बार देख लो।"
+        else -> "अरे, इंटरनेट या Gemini में कुछ गड़बड़ है, और ये काम मुझे ऑफलाइन समझ नहीं आया।"
     }
 
     private fun speak(reply: String) {
