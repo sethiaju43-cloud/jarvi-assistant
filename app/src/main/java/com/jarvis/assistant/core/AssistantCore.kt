@@ -70,6 +70,9 @@ class AssistantCore(private val app: Application) {
     var wakeReply by mutableStateOf(prefs.wakeReply)
         private set
 
+    var geminiVoice by mutableStateOf(prefs.geminiVoice)
+        private set
+
     /** Wake word ki halat (download %, ready, error). */
     var wakeStatus by mutableStateOf("")
 
@@ -105,7 +108,8 @@ class AssistantCore(private val app: Application) {
         name: String,
         nick: String,
         chat: Boolean,
-        wake: Boolean
+        wake: Boolean,
+        gVoice: Boolean
     ) {
         prefs.apiKey = key
         prefs.model = modelName
@@ -113,12 +117,14 @@ class AssistantCore(private val app: Application) {
         prefs.nickname = nick
         prefs.chatMode = chat
         prefs.wakeReply = wake
+        prefs.geminiVoice = gVoice
         apiKey = prefs.apiKey
         model = prefs.model
         userName = prefs.userName
         nickname = prefs.nickname
         chatMode = prefs.chatMode
         wakeReply = prefs.wakeReply
+        geminiVoice = prefs.geminiVoice
         greetingText = Persona.greeting(prefs)
         gemini.clear()
     }
@@ -126,6 +132,10 @@ class AssistantCore(private val app: Application) {
     fun nextVoice(): String = tts.nextVoice()
 
     fun voiceLabel(): String = tts.voiceLabel()
+
+    fun nextGeminiVoice(): String = tts.nextGeminiVoice()
+
+    fun geminiVoiceLabel(): String = tts.geminiVoiceLabel()
 
     // ---------- Sunna ----------
 
@@ -275,6 +285,7 @@ class AssistantCore(private val app: Application) {
     private fun errorText(e: Exception): String = when {
         e.message == "NO_KEY" -> "पहले सेटिंग्स में अपनी Gemini API key डाल दो ना।"
         e.message?.contains("429") == true -> "अरे, Gemini की फ्री लिमिट पूरी हो गई। थोड़ी देर बाद फिर कोशिश करते हैं।"
+        e.message?.contains("404") == true -> "मॉडल का नाम नहीं मिला। सेटिंग्स में gemini-3.8-flash डालकर देखो।"
         e.message?.contains("400") == true || e.message?.contains("403") == true ->
             "लगता है API key या मॉडल का नाम गलत है। सेटिंग्स एक बार देख लो।"
         else -> "अरे, इंटरनेट या Gemini में कुछ गड़बड़ है, और ये काम मुझे ऑफलाइन समझ नहीं आया।"
