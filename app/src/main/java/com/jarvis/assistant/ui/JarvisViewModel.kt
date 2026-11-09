@@ -25,6 +25,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val nickname: String get() = core.nickname
     val chatMode: Boolean get() = core.chatMode
     val wakeReply: Boolean get() = core.wakeReply
+    val geminiVoice: Boolean get() = core.geminiVoice
     val messages get() = core.messages
 
     fun saveSettings(
@@ -33,11 +34,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         name: String,
         nick: String,
         chat: Boolean,
-        wake: Boolean
-    ) = core.saveSettings(key, modelName, name, nick, chat, wake)
+        wake: Boolean,
+        gVoice: Boolean
+    ) = core.saveSettings(key, modelName, name, nick, chat, wake, gVoice)
 
     fun nextVoice(): String = core.nextVoice()
     fun voiceLabel(): String = core.voiceLabel()
+    fun nextGeminiVoice(): String = core.nextGeminiVoice()
+    fun geminiVoiceLabel(): String = core.geminiVoiceLabel()
     fun onMic() = core.onMic()
     fun submit(text: String) = core.submit(text)
 }
