@@ -25,6 +25,41 @@ class Prefs(context: Context) {
             sp.edit().putBoolean("floating_on", value).apply()
         }
 
+    /** User ka naam. */
+    var userName: String
+        get() = sp.getString("user_name", "") ?: ""
+        set(value) {
+            sp.edit().putString("user_name", value.trim()).apply()
+        }
+
+    /** Pyaar se bulane ka naam. */
+    var nickname: String
+        get() = sp.getString("nickname", "") ?: ""
+        set(value) {
+            sp.edit().putString("nickname", value.trim()).apply()
+        }
+
+    /** Chuni hui TTS awaaz ka naam. */
+    var voiceName: String
+        get() = sp.getString("voice_name", "") ?: ""
+        set(value) {
+            sp.edit().putString("voice_name", value).apply()
+        }
+
+    /** Jawab ke baad khud dobara sunna. */
+    var chatMode: Boolean
+        get() = sp.getBoolean("chat_mode", true)
+        set(value) {
+            sp.edit().putBoolean("chat_mode", value).apply()
+        }
+
+    /** "Jarvis" bolne par "haan bolo" kehna. */
+    var wakeReply: Boolean
+        get() = sp.getBoolean("wake_reply", true)
+        set(value) {
+            sp.edit().putBoolean("wake_reply", value).apply()
+        }
+
     companion object {
         const val DEFAULT_MODEL = "gemini-2.5-flash"
     }
